@@ -99,14 +99,21 @@ if item == "철근":
     dates = ['24. 5.', '24. 6.', '24. 7.', '24. 8.', '24. 9.', '24. 10.', '24. 11.', '24. 12.', '25. 1.', '25. 2.', '25. 3.', '25. 4.', '25. 5.', '25. 6.', '25. 7.', '25. 8.', '25. 9.', '25. 10.', '25. 11.', '25. 12.', '26. 1.', '26. 2.', '26. 3.', '26. 4.(예측)']
     ai_summary = "철근 시장은 26. 1월 저점 이후 공급망 인상 여파로 최근 3개월간 반등세가 뚜렷합니다."
     img_path, kw, label_name = "이형철근.png", "철근 가격 시황", "철근가격"
-    y_min, y_max = 600000, 1150000
-else:
-    prices = [6800, 6620, 6450, 7260, 7360, 7460] if item == "알루미늄판" else [90000, 91000, 92000, 93000, 94000, 95000]
-    dates = ['25. 12.', '26. 1.', '26. 2.', '26. 3.', '26. 4.', '26. 5.(예측)']
-    ai_summary = f"{item}의 데이터 분석 결과입니다."
-    img_path = "알루미늄판.png" if item == "알루미늄판" else "레미콘.png"
-    kw, label_name = f"{item} 가격", f"{item}가격"
-    y_min, y_max = 0, math.ceil(max(prices) * 1.3 / (10**(len(str(max(prices)))-1))) * (10**(len(str(max(prices)))-1))
+    y_min, y_max = 600000, 1000000 # 철근 Y축 최대값 1,000,000 고정
+elif item == "레미콘":
+    # 레미콘 과거 데이터 대폭 추가
+    prices = [80000, 81200, 82500, 83000, 84500, 86000, 88000, 89500, 90000, 91000, 92000, 93000, 94000, 95000]
+    dates = ['24. 5.', '24. 7.', '24. 9.', '24. 11.', '25. 1.', '25. 3.', '25. 5.', '25. 7.', '25. 9.', '25. 11.', '26. 1.', '26. 2.', '26. 3.', '26. 4.(예측)']
+    ai_summary = "레미콘 가격은 원자재 비용 상승과 건설 성수기 진입 여파로 우상향 흐름이 유지될 전망입니다."
+    img_path, kw, label_name = "레미콘.png", "레미콘 가격", "레미콘가격"
+    y_min, y_max = 0, 130000
+elif item == "알루미늄판":
+    # 알루미늄판 과거 데이터 대폭 추가
+    prices = [5800, 5950, 6100, 6300, 6200, 6400, 6600, 6800, 6620, 6450, 7260, 7360, 7460]
+    dates = ['24. 5.', '24. 7.', '24. 9.', '24. 11.', '25. 1.', '25. 3.', '25. 5.', '25. 7.', '25. 9.', '25. 11.', '26. 1.', '26. 2.', '26. 3.(예측)']
+    ai_summary = "알루미늄판은 글로벌 공급망 불안정과 에너지 단가 상승으로 인해 높은 변동성이 예상됩니다."
+    img_path, kw, label_name = "알루미늄판.png", "알루미늄판 가격", "알루미늄판가격"
+    y_min, y_max = 0, 10000
 
 df = pd.DataFrame({'날짜': dates, label_name: prices})
 
@@ -132,7 +139,7 @@ with c2:
     st.plotly_chart(fig, use_container_width=True, theme=None)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# 6. 상세 데이터 현황 (꾹 누르는 버튼 및 테이블 크기 고정)
+# 6. 상세 데이터 현황 (테이블 스크롤)
 st.markdown(f'<div class="unified-card"><h4>📊 {item} 상세 데이터 현황</h4>', unsafe_allow_html=True)
 
 html_df = df.set_index('날짜').T
@@ -175,10 +182,11 @@ components.html(f"""
 """, height=220)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 7. 하단 뉴스 (글자 크기 절대 고정 및 한 단어 키워드)
+# 7. 하단 뉴스 및 AI 시황 요약
 c3, c4 = st.columns([1, 1.5], gap="large")
 with c3:
     st.markdown(f'<div class="unified-card"><h4>🤖 AI 시황 요약</h4><p style="font-size: 20px; font-weight:600; color:#000000;">{ai_summary}</p></div>', unsafe_allow_html=True)
+
 with c4:
     st.markdown('<div class="unified-card"><h4>📰 실시간 시장 뉴스 브리핑</h4>', unsafe_allow_html=True)
     news_list = get_realtime_news(kw)
