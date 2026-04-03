@@ -45,6 +45,23 @@ st.markdown("""
     .yellow-table th { background-color: #FDF17C; font-weight: bold; }
     .news-link { color: #007BFF !important; text-decoration: none; font-weight: 600; white-space: nowrap !important; }
     
+    /* 로딩 메시지 중앙 정렬 및 크기 확대 */
+    div[data-testid="stStatusWidget"] {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 9999;
+    }
+    div[data-testid="stStatusWidget"] div {
+        font-size: 28px !important;
+        font-weight: 800 !important;
+        color: #007BFF !important;
+    }
+
     .footer {
         text-align: center;
         padding: 20px;
@@ -53,17 +70,13 @@ st.markdown("""
         border-top: 1px solid #ddd;
         margin-top: 50px;
     }
-    .delta-up { color: #FF4B4B; font-size: 16px; font-weight: bold; }
-    .delta-down { color: #007BFF; font-size: 16px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
 # 3. API 로직
 def get_exchange_rate(authkey):
-    # 오늘과 어제 환율을 가져와 비교 (등락폭 계산)
     today = datetime.now().strftime('%Y%m%d')
     yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
-    
     def fetch_rate(date):
         url = f"https://www.koreaexim.go.kr/site/program/financial/exchangeJSON?authkey={authkey}&searchdate={date}&data=AP01"
         try:
@@ -73,10 +86,8 @@ def get_exchange_rate(authkey):
                     if item['cur_unit'] == 'USD': return item['deal_bas_r']
             return None
         except: return None
-
     curr = fetch_rate(today)
     prev = fetch_rate(yesterday)
-    
     if curr:
         try:
             c_val = float(curr.replace(',', ''))
@@ -88,7 +99,6 @@ def get_exchange_rate(authkey):
     return "연결 대기"
 
 def get_bok_base_rate(authkey):
-    # 기준금리 및 전월 대비 비교
     url = f"https://ecos.bok.or.kr/api/StatisticSearch/{authkey}/json/kr/1/2/722Y001/D/20260101/20261231/0101000/"
     try:
         res = requests.get(url, timeout=5)
@@ -103,9 +113,9 @@ def get_bok_base_rate(authkey):
     except: return "확인 불가"
 
 def get_realtime_news(query):
-    client_id = "ln148XZ9IeyGlRln6t0e"; client_secret = "xoHOWw4BfT"
+    client_id = "ln148XZ9IeyGlRln6t0e"; client_secret = "xoHOWw4BT"
     url = f"https://openapi.naver.com/v1/search/news.json?query={query}&display=3&sort=sim"
-    headers = {"X-Naver-Client-Id": client_id, "X-Naver-Client-Secret": client_secret}
+    headers = {"X-Naver-Client-Id": client_id, "X-Naver-Client-Secret": "xoHOWw4BfT"}
     try:
         res = requests.get(url, headers=headers)
         return res.json().get('items', []) if res.status_code == 200 else []
@@ -119,12 +129,11 @@ def get_exact_press(item_obj):
     return "경제신문"
 
 # --- 화면 실행 ---
-# 데이터 로딩 스피너 적용
 with st.spinner('실시간 경제 지표 및 자재 데이터를 분석 중입니다...'):
     usd_rate = get_exchange_rate(EXIM_AUTH_KEY)
     bok_rate = get_bok_base_rate(BOK_AUTH_KEY)
 
-st.markdown(f"<div style='text-align:right;'><span style='color:#007BFF; font-weight:bold;'>💱 실시간 환율: {usd_rate} | 🏦 기준금리: {bok_rate}</span></div>", unsafe_allow_html=True)
+st.markdown(f"<div style='text-align:right;'><span style='color:#007BFF; font-weight:bold;'>💱 실시간 환율: {usd_rate} | 🏦 한국은행 기준금리: {bok_rate}</span></div>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align:center; color:#007BFF;'>🏗️ AI 물가예측 프로그램</h2>", unsafe_allow_html=True)
 
 item_choice = st.radio("", ["레미콘", "철근", "알루미늄판"], horizontal=True, index=1)
@@ -148,7 +157,9 @@ else:
     img_path, kw, label_name = "알루미늄판.png", "알루미늄판 시황", "알루미늄가격"
     y_min, y_max = 0, 10000
 
-df = pd.DataFrame({'날짜': dates, label_name: prices})
+# 데이터프레임 생성 및 그래프용 데이터 추출
+df = pd.DataFrame({'날짜': dates, '가격': prices})
+df_tail = df.tail(6).copy()
 
 c1, c2 = st.columns([1, 1.5], gap="large")
 with c1:
@@ -159,7 +170,8 @@ with c1:
 
 with c2:
     st.markdown(f'<div class="unified-card"><h4>📈 {item_choice} 최근 6개월 가격 추이</h4>', unsafe_allow_html=True)
-    fig = px.bar(df.tail(6), x='날짜', y=label_name, text=label_name)
+    # 막대그래프 강제 복구 로직
+    fig = px.bar(df_tail, x='날짜', y='가격', text='가격')
     fig.update_traces(
         marker_color=['#B0C4DE']*5 + ['#FF8C00'], 
         texttemplate='%{text:,.0f}', 
@@ -168,11 +180,11 @@ with c2:
     )
     fig.update_layout(
         yaxis=dict(range=[y_min, y_max], tickfont=dict(size=18, color='#000000'), title=dict(font=dict(color='#000000'), text="가격")),
-        xaxis=dict(tickfont=dict(size=18, color='#000000'), title=dict(font=dict(color='#000000'), text="날짜")),
-        margin=dict(t=50, b=50), height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(type='category', tickfont=dict(size=18, color='#000000'), title=dict(font=dict(color='#000000'), text="날짜")),
+        margin=dict(t=50, b=50, l=10, r=10), height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         bargap=0.4
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
     st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown(f'<div class="unified-card"><h4>📊 {item_choice} 상세 데이터 현황</h4>', unsafe_allow_html=True)
@@ -188,11 +200,9 @@ components.html(f"""
     .yellow-table {{ min-width: 3500px; border-collapse: collapse; text-align: center; font-family: sans-serif; }}
     .yellow-table th, .yellow-table td {{ padding: 15px 30px; border: 1px solid #E6E0A4; font-size: 18px; color: black; }}
     .yellow-table th {{ background-color: #FDF17C; }}
-    
-    .table-wrapper::-webkit-scrollbar {{ height: 14px; }}
+    .table-wrapper::-webkit-scrollbar {{ height: 14px; display: block !important; }}
     .table-wrapper::-webkit-scrollbar-track {{ background: #f1f1f1; border-radius: 10px; }}
     .table-wrapper::-webkit-scrollbar-thumb {{ background: #888; border-radius: 10px; }}
-    .table-wrapper::-webkit-scrollbar-thumb:hover {{ background: #555; }}
     </style>
     <div class="scroll-container">
         <button class="nav-btn" onmousedown="scrollT(-40)" onmouseup="stopS()" onmouseleave="stopS()"> < </button>
@@ -214,15 +224,10 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 c3, c4 = st.columns([1, 1.5], gap="large")
 with c3:
-    st.markdown(f"""
-        <div class="unified-card">
-            <h4>🤖 AI 시황 및 통계 분석</h4>
-            <p style='font-size:19px;'><b>분석 의견:</b> {ai_summary}</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="unified-card"><h4>🤖 AI 시황 및 통계 분석</h4><p style="font-size:19px;"><b>분석 의견:</b> {ai_summary}</p></div>', unsafe_allow_html=True)
 with c4:
     st.markdown('<div class="unified-card"><h4>📰 실시간 시장 뉴스 브리핑</h4>', unsafe_allow_html=True)
-    news_list = get_realtime_news(kw)
+    news_list = get_realtime_news(item_choice)
     if news_list:
         n_html = "<table class='yellow-table' style='font-size:16px;'><thead><tr><th style='width:150px;'>핵심 단어</th><th>뉴스 요약</th><th style='width:150px;'>언론사</th></tr></thead><tbody>"
         for n in news_list:
@@ -234,7 +239,6 @@ with c4:
         st.markdown(n_html + "</tbody></table>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# 맨 하단 출처 표기 (Footer)
 st.markdown("""
     <div class="footer">
         <b>Data Sources & API Provided by:</b><br>
