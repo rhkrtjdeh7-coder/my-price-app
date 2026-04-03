@@ -7,13 +7,11 @@ import warnings
 import re
 import streamlit.components.v1 as components
 from datetime import datetime, timedelta
-import xml.etree.ElementTree as ET
 
 warnings.filterwarnings("ignore")
 
 # --- 인증키 설정 ---
 EXIM_AUTH_KEY = "oka2HI3dbkqWZbblzHnDXYr4M53HhAL6" 
-CUSTOMS_AUTH_KEY = "e9d7f51fb8b79a747bb7996f6c4110b3103b747df6a5c9496c2a67374ab08e72" 
 BOK_AUTH_KEY = "Y14PHW4YRQMCGRI92WAD"
 
 # 1. 페이지 설정
@@ -36,6 +34,7 @@ st.markdown("""
         background-color: #E7F3FE !important; padding: 25px !important;
         border-radius: 12px !important; border-left: 8px solid #007BFF !important;
         box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; margin-bottom: 35px !important;
+        width: 100%;
     }
     .yellow-table { border-collapse: collapse; text-align: center; width: 100%; }
     .yellow-table th, .yellow-table td { 
@@ -69,19 +68,6 @@ def get_bok_base_rate(authkey):
         return "조회 대기"
     except: return "확인 불가"
 
-def get_customs_trade_data(authkey, hs_code):
-    last_month = (datetime.now().replace(day=1) - timedelta(days=1)).strftime('%Y%m')
-    url = f"http://openapi.customs.go.kr/openapi/service/newTradestatistics/getNewTradestatisticsList?serviceKey={authkey}&searchBgnDe={last_month}&searchEndDe={last_month}&searchItemCd={hs_code}"
-    try:
-        res = requests.get(url, timeout=5)
-        if res.status_code == 200:
-            root = ET.fromstring(res.text)
-            item_node = root.find('.//item')
-            if item_node is not None:
-                return f"{float(item_node.find('impWeight').text):,.0f}kg / ${float(item_node.find('impPrice').text):,.0f}"
-        return "데이터 없음"
-    except: return "조회 실패"
-
 def get_realtime_news(query):
     client_id = "ln148XZ9IeyGlRln6t0e"; client_secret = "xoHOWw4BfT"
     url = f"https://openapi.naver.com/v1/search/news.json?query={query}&display=3&sort=sim"
@@ -111,23 +97,22 @@ if item_choice == "철근":
     prices = [880000, 880000, 870000, 870000, 880000, 880000, 900000, 895000, 870000, 850000, 840000, 830000, 820000, 840000, 850000, 820000, 820000, 810000, 790000, 800000, 780000, 770000, 800000, 815000, 815000, 855000]
     dates = ['24.04', '24.05', '24.06', '24.07', '24.08', '24.09', '24.10', '24.11', '24.12', '25.01', '25.02', '25.03', '25.04', '25.05', '25.06', '25.07', '25.08', '25.09', '25.10', '25.11', '25.12', '26.01', '26.02', '26.03', '26.04', '26.05(예측)']
     ai_summary = "철근 가격은 공급망 이슈로 인해 26년 초부터 다시 반등 추세에 있습니다."
-    img_path, kw, label_name, hs_code = "이형철근.png", "철근 가격", "철근가격", "721420"
+    img_path, kw, label_name = "이형철근.png", "철근 가격", "철근가격"
     y_min, y_max = 600000, 1000000
 elif item_choice == "레미콘":
     prices = [80000, 82000, 84000, 86000, 88000, 90000, 92000, 95000]
     dates = ['25.10', '25.11', '25.12', '26.01', '26.02', '26.03', '26.04', '26.05(예측)']
     ai_summary = "레미콘은 시멘트 가격 인상 압박으로 완만한 상승세가 예상됩니다."
-    img_path, kw, label_name, hs_code = "레미콘.png", "레미콘 시황", "레미콘가격", "382450"
+    img_path, kw, label_name = "레미콘.png", "레미콘 시황", "레미콘가격"
     y_min, y_max = 0, 130000
 else:
     prices = [6100, 6300, 6400, 6600, 6800, 7260, 7460, 7600]
     dates = ['25.10', '25.11', '25.12', '26.01', '26.02', '26.03', '26.04', '26.05(예측)']
     ai_summary = "알루미늄판은 글로벌 공급 부족으로 변동성이 심화되고 있습니다."
-    img_path, kw, label_name, hs_code = "알루미늄판.png", "알루미늄판 시황", "알루미늄가격", "760611"
+    img_path, kw, label_name = "알루미늄판.png", "알루미늄판 시황", "알루미늄가격"
     y_min, y_max = 0, 10000
 
 df = pd.DataFrame({'날짜': dates, label_name: prices})
-trade_data = get_customs_trade_data(CUSTOMS_AUTH_KEY, hs_code)
 
 c1, c2 = st.columns([1, 1.5], gap="large")
 with c1:
@@ -138,7 +123,7 @@ with c1:
 
 with c2:
     st.markdown(f'<div class="unified-card"><h4>📈 {item_choice} 최근 6개월 가격 추이</h4>', unsafe_allow_html=True)
-    # 최근 6개월 데이터만 슬라이싱하여 그래프가 깨지는 현상 방지
+    # 최근 6개월 데이터만 표시 및 형식 복구
     fig = px.bar(df.tail(6), x='날짜', y=label_name, text=label_name)
     fig.update_traces(
         marker_color=['#B0C4DE']*5 + ['#FF8C00'], 
@@ -198,8 +183,6 @@ with c3:
         <div class="unified-card">
             <h4>🤖 AI 시황 및 통계 분석</h4>
             <p style='font-size:19px;'><b>분석 의견:</b> {ai_summary}</p>
-            <hr>
-            <p style='font-size:18px; color:#007BFF;'><b>📦 관세청 전월 수입 실적:</b> {trade_data}</p>
         </div>
     """, unsafe_allow_html=True)
 with c4:
