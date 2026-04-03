@@ -107,6 +107,24 @@ def get_realtime_news(query):
         return res.json().get('items', []) if res.status_code == 200 else []
     except: return []
 
+def get_smart_keyword(title):
+    # 제목에서 불필요한 태그 제거 및 핵심 키워드 추출 로직
+    clean_t = re.sub(r'<[^>]+>', '', title)
+    # 조사나 기호 제거를 위한 간단한 정규식
+    clean_t = re.sub(r'[^\w\s]', '', clean_t)
+    words = clean_t.split()
+    
+    # 건설 관련 핵심 키워드가 제목에 있으면 우선 추출
+    core_keywords = ['철근', '레미콘', '시멘트', '알루미늄', '건설', '물가', '금리', '가격', '인상', '하락']
+    for word in words:
+        if any(core in word for core in core_keywords):
+            return f"#{word[:4]}"
+    
+    # 핵심어가 없으면 두 번째 단어나 가장 긴 단어 선택 (보통 제목 첫 단어는 주어라 어색함)
+    if len(words) > 1:
+        return f"#{words[1][:4]}"
+    return f"#{words[0][:4]}" if words else "#뉴스"
+
 def get_exact_press(item_obj):
     link = item_obj.get('originallink', item_obj.get('link', ''))
     press_dict = {'hankyung.com': '한국경제', 'mk.co.kr': '매일경제', 'yna.co.kr': '연합뉴스', 'chosun.com': '조선일보', 'joins.com': '중앙일보', 'donga.com': '동아일보'}
@@ -127,19 +145,19 @@ item_choice = st.radio("", ["레미콘", "철근", "알루미늄판"], horizonta
 if item_choice == "철근":
     prices = [880000, 880000, 870000, 870000, 880000, 880000, 900000, 895000, 870000, 850000, 840000, 830000, 820000, 840000, 850000, 820000, 820000, 810000, 790000, 800000, 780000, 770000, 800000, 815000, 815000, 855000]
     dates = ['24.04', '24.05', '24.06', '24.07', '24.08', '24.09', '24.10', '24.11', '24.12', '25.01', '25.02', '25.03', '25.04', '25.05', '25.06', '25.07', '25.08', '25.09', '25.10', '25.11', '25.12', '26.01', '26.02', '26.03', '26.04', '26.05(예측)']
-    ai_summary = "공급망 이슈 및 기준금리 변동 기조를 반영할 때, 26년 상반기 철근 가격은 반등 추세가 지속될 것으로 예측됩니다."
+    ai_summary = "원자재 수급 불안정 및 고금리 유지 상황을 반영할 때, 26년 상반기 철근 단가는 추가적인 반등 압력을 받을 것으로 분석됩니다."
     img_path, kw, label_name = "이형철근.png", "철근 가격", "철근가격"
     y_min, y_max = 600000, 1000000
 elif item_choice == "레미콘":
     prices = [80000, 82000, 84000, 86000, 88000, 90000, 92000, 95000]
     dates = ['25.10', '25.11', '25.12', '26.01', '26.02', '26.03', '26.04', '26.05(예측)']
-    ai_summary = "시멘트 원가 상승과 유류비 변동 추이를 분석한 결과, 레미콘 가격은 완만한 우상향 곡선을 그릴 것으로 전망됩니다."
+    ai_summary = "시멘트 및 골재 가격 상승분이 반영되면서 레미콘 가격은 공급자 우위 시장을 형성하며 강보합세를 보일 전망입니다."
     img_path, kw, label_name = "레미콘.png", "레미콘 시황", "레미콘가격"
     y_min, y_max = 0, 130000
 else:
     prices = [6100, 6300, 6400, 6600, 6800, 7260, 7460, 7600]
     dates = ['25.10', '25.11', '25.12', '26.01', '26.02', '26.03', '26.04', '26.05(예측)']
-    ai_summary = "LME 재고 상황과 글로벌 공급망 리스크를 반영하여, 알루미늄판 가격의 단기적 변동성이 높을 것으로 예측됩니다."
+    ai_summary = "글로벌 알루미늄 재고 지수 하락과 환율 변동성을 고려할 때, 국내 알루미늄판 단가는 상방 변동성이 확대될 것으로 보입니다."
     img_path, kw, label_name = "알루미늄판.png", "알루미늄판 시황", "알루미늄가격"
     y_min, y_max = 0, 10000
 
@@ -154,9 +172,7 @@ with c1:
 
 with c2:
     st.markdown(f'<div class="unified-card"><h4>📈 {item_choice} 최근 6개월 가격 추이</h4>', unsafe_allow_html=True)
-    # 그래프 데이터 슬라이싱 및 옵션 고정
-    fig_data = df.tail(6).copy()
-    fig = px.bar(fig_data, x='날짜', y='가격', text='가격')
+    fig = px.bar(df.tail(6), x='날짜', y='가격', text='가격')
     fig.update_traces(
         marker_color=['#B0C4DE']*5 + ['#FF8C00'], 
         texttemplate='%{text:,.0f}', 
@@ -173,6 +189,10 @@ with c2:
     st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown(f'<div class="unified-card"><h4>📊 {item_choice} 상세 데이터 현황</h4>', unsafe_allow_html=True)
+# 데이터 다운로드 버튼 추가
+csv = df.to_csv(index=False).encode('utf-8-sig')
+st.download_button(label="📥 전체 데이터 엑셀(CSV) 저장", data=csv, file_name=f'{item_choice}_가격데이터.csv', mime='text/csv')
+
 html_df = df.set_index('날짜').T
 t_th = "".join([f"<th>{c}</th>" for c in html_df.columns])
 t_td = "".join([f"<tr><td><b>{idx}</b></td>" + "".join([f"<td>{int(v) if isinstance(v, (int, float)) else v:,}</td>" for v in row]) + "</tr>" for idx, row in html_df.iterrows()])
@@ -202,7 +222,7 @@ components.html(f"""
     <script>
     var timer;
     var container = document.getElementById('scroll-box');
-    setTimeout(function() {{ container.scrollLeft = container.scrollWidth; }}, 150);
+    setTimeout(function() {{ container.scrollLeft = container.scrollWidth; }}, 200);
     function scrollT(speed) {{ timer = setInterval(function(){{ container.scrollLeft += speed; }}, 20); }}
     function stopS() {{ clearInterval(timer); }}
     </script>
@@ -219,10 +239,10 @@ with c4:
         n_html = "<table class='yellow-table' style='font-size:16px;'><thead><tr><th style='width:150px;'>핵심 단어</th><th>뉴스 요약</th><th style='width:150px;'>언론사</th></tr></thead><tbody>"
         for n in news_list:
             clean_t = n['title'].replace('<b>','').replace('</b>','')
-            words = clean_t.split()
-            keyword = words[0] if words else "뉴스"
+            # 똑똑한 키워드 추출 로직 적용
+            keyword = get_smart_keyword(n['title'])
             press = get_exact_press(n)
-            n_html += f"<tr><td style='font-weight:bold; color:#007BFF; white-space:nowrap;'>#{keyword[:4]}</td><td style='text-align:left; white-space:nowrap;'><a href='{n['link']}' class='news-link' target='_blank'>{clean_t}</a></td><td style='font-weight:bold; white-space:nowrap;'>{press}</td></tr>"
+            n_html += f"<tr><td style='font-weight:bold; color:#007BFF; white-space:nowrap;'>{keyword}</td><td style='text-align:left; white-space:nowrap;'><a href='{n['link']}' class='news-link' target='_blank'>{clean_t}</a></td><td style='font-weight:bold; white-space:nowrap;'>{press}</td></tr>"
         st.markdown(n_html + "</tbody></table>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
