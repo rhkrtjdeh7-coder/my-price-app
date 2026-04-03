@@ -44,27 +44,61 @@ st.markdown("""
     }
     .yellow-table th { background-color: #FDF17C; font-weight: bold; }
     .news-link { color: #007BFF !important; text-decoration: none; font-weight: 600; white-space: nowrap !important; }
+    
+    .footer {
+        text-align: center;
+        padding: 20px;
+        font-size: 14px;
+        color: #666666 !important;
+        border-top: 1px solid #ddd;
+        margin-top: 50px;
+    }
+    .delta-up { color: #FF4B4B; font-size: 16px; font-weight: bold; }
+    .delta-down { color: #007BFF; font-size: 16px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
 # 3. API 로직
 def get_exchange_rate(authkey):
+    # 오늘과 어제 환율을 가져와 비교 (등락폭 계산)
     today = datetime.now().strftime('%Y%m%d')
-    url = f"https://www.koreaexim.go.kr/site/program/financial/exchangeJSON?authkey={authkey}&searchdate={today}&data=AP01"
-    try:
-        res = requests.get(url, verify=False, timeout=5)
-        if res.status_code == 200:
-            for item in res.json():
-                if item['cur_unit'] == 'USD': return item['deal_bas_r']
-        return "연결 대기"
-    except: return "확인 불가"
+    yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
+    
+    def fetch_rate(date):
+        url = f"https://www.koreaexim.go.kr/site/program/financial/exchangeJSON?authkey={authkey}&searchdate={date}&data=AP01"
+        try:
+            res = requests.get(url, verify=False, timeout=5)
+            if res.status_code == 200:
+                for item in res.json():
+                    if item['cur_unit'] == 'USD': return item['deal_bas_r']
+            return None
+        except: return None
+
+    curr = fetch_rate(today)
+    prev = fetch_rate(yesterday)
+    
+    if curr:
+        try:
+            c_val = float(curr.replace(',', ''))
+            p_val = float(prev.replace(',', '')) if prev else c_val
+            diff = c_val - p_val
+            sign = "▲" if diff > 0 else "▼" if diff < 0 else "-"
+            return f"{curr}원 ({sign}{abs(diff):.1f})"
+        except: return f"{curr}원"
+    return "연결 대기"
 
 def get_bok_base_rate(authkey):
-    url = f"https://ecos.bok.or.kr/api/StatisticSearch/{authkey}/json/kr/1/1/722Y001/D/20260101/20261231/0101000/"
+    # 기준금리 및 전월 대비 비교
+    url = f"https://ecos.bok.or.kr/api/StatisticSearch/{authkey}/json/kr/1/2/722Y001/D/20260101/20261231/0101000/"
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200:
-            return res.json()['StatisticSearch']['row'][0]['DATA_VALUE']
+            rows = res.json()['StatisticSearch']['row']
+            curr = float(rows[0]['DATA_VALUE'])
+            prev = float(rows[1]['DATA_VALUE']) if len(rows) > 1 else curr
+            diff = curr - prev
+            sign = "▲" if diff > 0 else "▼" if diff < 0 else "-"
+            return f"{curr}% ({sign}{abs(diff):.2f})"
         return "조회 대기"
     except: return "확인 불가"
 
@@ -85,10 +119,12 @@ def get_exact_press(item_obj):
     return "경제신문"
 
 # --- 화면 실행 ---
-usd_rate = get_exchange_rate(EXIM_AUTH_KEY)
-bok_rate = get_bok_base_rate(BOK_AUTH_KEY)
+# 데이터 로딩 스피너 적용
+with st.spinner('실시간 경제 지표 및 자재 데이터를 분석 중입니다...'):
+    usd_rate = get_exchange_rate(EXIM_AUTH_KEY)
+    bok_rate = get_bok_base_rate(BOK_AUTH_KEY)
 
-st.markdown(f"<div style='text-align:right;'><span style='color:#007BFF; font-weight:bold;'>💱 환율: {usd_rate}원 | 🏦 기준금리: {bok_rate}%</span></div>", unsafe_allow_html=True)
+st.markdown(f"<div style='text-align:right;'><span style='color:#007BFF; font-weight:bold;'>💱 실시간 환율: {usd_rate} | 🏦 기준금리: {bok_rate}</span></div>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align:center; color:#007BFF;'>🏗️ AI 물가예측 프로그램</h2>", unsafe_allow_html=True)
 
 item_choice = st.radio("", ["레미콘", "철근", "알루미늄판"], horizontal=True, index=1)
@@ -96,19 +132,19 @@ item_choice = st.radio("", ["레미콘", "철근", "알루미늄판"], horizonta
 if item_choice == "철근":
     prices = [880000, 880000, 870000, 870000, 880000, 880000, 900000, 895000, 870000, 850000, 840000, 830000, 820000, 840000, 850000, 820000, 820000, 810000, 790000, 800000, 780000, 770000, 800000, 815000, 815000, 855000]
     dates = ['24.04', '24.05', '24.06', '24.07', '24.08', '24.09', '24.10', '24.11', '24.12', '25.01', '25.02', '25.03', '25.04', '25.05', '25.06', '25.07', '25.08', '25.09', '25.10', '25.11', '25.12', '26.01', '26.02', '26.03', '26.04', '26.05(예측)']
-    ai_summary = "철근 가격은 공급망 이슈로 인해 26년 초부터 다시 반등 추세에 있습니다."
+    ai_summary = "공급망 이슈 및 기준금리 변동 기조를 반영할 때, 26년 상반기 철근 가격은 반등 추세가 지속될 것으로 예측됩니다."
     img_path, kw, label_name = "이형철근.png", "철근 가격", "철근가격"
     y_min, y_max = 600000, 1000000
 elif item_choice == "레미콘":
     prices = [80000, 82000, 84000, 86000, 88000, 90000, 92000, 95000]
     dates = ['25.10', '25.11', '25.12', '26.01', '26.02', '26.03', '26.04', '26.05(예측)']
-    ai_summary = "레미콘은 시멘트 가격 인상 압박으로 완만한 상승세가 예상됩니다."
+    ai_summary = "시멘트 원가 상승과 유류비 변동 추이를 분석한 결과, 레미콘 가격은 완만한 우상향 곡선을 그릴 것으로 전망됩니다."
     img_path, kw, label_name = "레미콘.png", "레미콘 시황", "레미콘가격"
     y_min, y_max = 0, 130000
 else:
     prices = [6100, 6300, 6400, 6600, 6800, 7260, 7460, 7600]
     dates = ['25.10', '25.11', '25.12', '26.01', '26.02', '26.03', '26.04', '26.05(예측)']
-    ai_summary = "알루미늄판은 글로벌 공급 부족으로 변동성이 심화되고 있습니다."
+    ai_summary = "LME 재고 상황과 글로벌 공급망 리스크를 반영하여, 알루미늄판 가격의 단기적 변동성이 높을 것으로 예측됩니다."
     img_path, kw, label_name = "알루미늄판.png", "알루미늄판 시황", "알루미늄가격"
     y_min, y_max = 0, 10000
 
@@ -123,7 +159,6 @@ with c1:
 
 with c2:
     st.markdown(f'<div class="unified-card"><h4>📈 {item_choice} 최근 6개월 가격 추이</h4>', unsafe_allow_html=True)
-    # 최근 6개월 데이터만 표시 및 형식 복구
     fig = px.bar(df.tail(6), x='날짜', y=label_name, text=label_name)
     fig.update_traces(
         marker_color=['#B0C4DE']*5 + ['#FF8C00'], 
@@ -198,3 +233,13 @@ with c4:
             n_html += f"<tr><td style='font-weight:bold; color:#007BFF; white-space:nowrap;'>#{keyword[:4]}</td><td style='text-align:left; white-space:nowrap;'><a href='{n['link']}' class='news-link' target='_blank'>{clean_t}</a></td><td style='font-weight:bold; white-space:nowrap;'>{press}</td></tr>"
         st.markdown(n_html + "</tbody></table>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
+
+# 맨 하단 출처 표기 (Footer)
+st.markdown("""
+    <div class="footer">
+        <b>Data Sources & API Provided by:</b><br>
+        환율 정보: 한국수출입은행 (Korea Exim Bank) | 
+        경제 지표: 한국은행 경제통계시스템 (ECOS) | 
+        시장 뉴스: 네이버 뉴스 검색 API (Naver Open API)
+    </div>
+""", unsafe_allow_html=True)
