@@ -41,9 +41,10 @@ st.markdown("""
     .yellow-table th, .yellow-table td { 
         padding: 20px 45px; border: 1px solid #E6E0A4; 
         font-size: 20px !important; color: #000000 !important; 
+        white-space: nowrap !important;
     }
     .yellow-table th { background-color: #FDF17C; font-weight: bold; }
-    .news-link { color: #007BFF !important; text-decoration: none; font-weight: 600; }
+    .news-link { color: #007BFF !important; text-decoration: none; font-weight: 600; white-space: nowrap !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -163,26 +164,32 @@ components.html(f"""
     .scroll-container {{ display: flex; align-items: center; gap: 10px; }}
     .table-wrapper {{ width: 100%; overflow-x: auto; background-color: #FFF9C4; border: 1px solid #E6E0A4; }}
     .nav-btn {{ background-color: #007BFF; color: white; border: none; border-radius: 50%; width: 50px; height: 50px; cursor: pointer; font-size: 24px; font-weight: bold; }}
-    .yellow-table {{ min-width: 3200px; border-collapse: collapse; text-align: center; font-family: sans-serif; }}
+    .yellow-table {{ min-width: 3500px; border-collapse: collapse; text-align: center; font-family: sans-serif; }}
     .yellow-table th, .yellow-table td {{ padding: 15px 30px; border: 1px solid #E6E0A4; font-size: 18px; color: black; }}
     .yellow-table th {{ background-color: #FDF17C; }}
+    
+    /* 하단 드래그 바(스크롤바) 스타일 강제 적용 */
+    .table-wrapper::-webkit-scrollbar {{ height: 14px; }}
+    .table-wrapper::-webkit-scrollbar-track {{ background: #f1f1f1; border-radius: 10px; }}
+    .table-wrapper::-webkit-scrollbar-thumb {{ background: #888; border-radius: 10px; }}
+    .table-wrapper::-webkit-scrollbar-thumb:hover {{ background: #555; }}
     </style>
     <div class="scroll-container">
-        <button class="nav-btn" onmousedown="scrollT(-30)" onmouseup="stopS()" onmouseleave="stopS()"> < </button>
+        <button class="nav-btn" onmousedown="scrollT(-40)" onmouseup="stopS()" onmouseleave="stopS()"> < </button>
         <div id="scroll-box" class="table-wrapper">
             <table class="yellow-table">
                 <thead><tr><th>구분</th>{t_th}</tr></thead>
                 <tbody>{t_td}</tbody>
             </table>
         </div>
-        <button class="nav-btn" onmousedown="scrollT(30)" onmouseup="stopS()" onmouseleave="stopS()"> > </button>
+        <button class="nav-btn" onmousedown="scrollT(40)" onmouseup="stopS()" onmouseleave="stopS()"> > </button>
     </div>
     <script>
     var timer;
     function scrollT(speed) {{ timer = setInterval(function(){{ document.getElementById('scroll-box').scrollLeft += speed; }}, 20); }}
     function stopS() {{ clearInterval(timer); }}
     </script>
-""", height=220)
+""", height=240)
 st.markdown('</div>', unsafe_allow_html=True)
 
 c3, c4 = st.columns([1, 1.5], gap="large")
@@ -205,6 +212,7 @@ with c4:
             words = clean_t.split()
             keyword = words[0] if words else "뉴스"
             press = get_exact_press(n)
-            n_html += f"<tr><td style='font-weight:bold; color:#007BFF;'>#{keyword[:4]}</td><td style='text-align:left;'><a href='{n['link']}' class='news-link' target='_blank'>{clean_t}</a></td><td style='font-weight:bold;'>{press}</td></tr>"
+            # 한 줄 표시 강제 적용 (white-space: nowrap)
+            n_html += f"<tr><td style='font-weight:bold; color:#007BFF; white-space:nowrap;'>#{keyword[:4]}</td><td style='text-align:left; white-space:nowrap;'><a href='{n['link']}' class='news-link' target='_blank'>{clean_t}</a></td><td style='font-weight:bold; white-space:nowrap;'>{press}</td></tr>"
         st.markdown(n_html + "</tbody></table>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
